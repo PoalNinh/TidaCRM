@@ -21,7 +21,7 @@
 
         body {
             background: rgb(204, 204, 204);
-            font-family: "Times New Roman", Times, serif;
+            font-family: Arial, Helvetica, sans-serif;
             margin: 0;
             padding: 0;
         }
@@ -43,13 +43,14 @@
 
         #content {
             background: white;
-            width: 210mm;
+            width: 230mm;
             min-height: 297mm;
-            padding: 10mm;
+            padding: 5mm;
             margin: 10mm auto;
             box-shadow: 0 0 0.5cm rgba(0, 0, 0, 0.5);
             transition: all 0.3s ease;
         }
+
 
         .header-table {
             width: 100%;
@@ -63,6 +64,16 @@
         .title-cell {
             width: 60%;
             text-align: center;
+        }
+
+        .header-table .title-cell b {
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .responsive-table th {
+            font-weight: 600;
+
         }
 
         .logo,
@@ -116,18 +127,21 @@
         @media print {
             body {
                 background: none;
+                width: 100%;
+                margin: 0;
+                padding: 0;
             }
 
             #content {
                 box-shadow: none;
+                width: 100% !important;
                 margin: 0;
                 padding: 0;
-                width: 100%;
                 min-height: auto;
             }
 
             #setup-print {
-                display: none;
+                display: none !important;
             }
         }
 
@@ -219,6 +233,7 @@
             width: 45%;
             display: inline-block;
         }
+
         #qrCodeContainer {
             display: flex;
             flex-direction: column;
@@ -243,10 +258,51 @@
             text-align: center;
             margin-top: 10px;
         }
+
+
+        .thermal-table {
+            display: none;
+        }
+
+        .regular-table {
+            display: table;
+        }
+
+        body[data-paper-size^="thermal-"] .thermal-table {
+            display: table;
+        }
+
+        body[data-paper-size^="thermal-"] .regular-table {
+            display: none;
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
     </style>
 </head>
 
 <body>
+    <div id="loading-screen"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.8); display: flex; justify-content: center; align-items: center; z-index: 9999;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Đang tải...</span>
+        </div>
+    </div>
     <div id="setup-print">
         <select id="select-paper-size" class="form-control mb-2">
             <option value="A4">A4</option>
@@ -305,16 +361,29 @@
             </tr>
         </table>
         <hr>
-        <table class="responsive-table">
+        <table class="responsive-table regular-table">
             <thead>
                 <tr>
-                    <th>Đơn giá</th>
-                    <th>SL</th>
-                    <th>Thành tiền</th>
+                    <th>STT</th>
+                    <th>Tên sản phẩm</th>
+                    <th style="text-align: center;">Đơn giá</th>
+                    <th style="text-align: center;">SL</th>
+                    <th style="text-align: right;">Thành tiền</th>
                 </tr>
             </thead>
             <tbody id="orderDetailsBody">
-
+            </tbody>
+        </table>
+        <table class="responsive-table thermal-table">
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Tên SP & SL</th>
+                    <th style="text-align: center;">Đơn giá</th>
+                    <th style="text-align: right;">Thành tiền</th>
+                </tr>
+            </thead>
+            <tbody id="thermalOrderDetailsBody">
             </tbody>
         </table>
         <hr>
@@ -344,7 +413,7 @@
                 <td colspan="3"><span id="conlai"></span></td>
             </tr>
         </table>
-        <i>(<span id="tongThanhToanBangChu"></span>)</i>
+        <i style="font-size: 10px;">(<span id="tongThanhToanBangChu"></span>)</i>
         <div id="qrCodeContainer" style="display: none;">
             <div id="qrcode"></div>
             <p id="accountInfo"></p>
@@ -357,8 +426,20 @@
         var BAN_GIAO = {};
         var CT_BANGIAO = [];
 
+        // Hàm để hiển thị màn hình loading
+        function showLoading() {
+            document.getElementById('loading-screen').style.display = 'flex';
+        }
+
+        // Hàm để ẩn màn hình loading
+        function hideLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+        }
+
 
         function searchContract(SODH) {
+            showLoading(); // Hiển thị màn hình loading trước khi bắt đầu tải
+
             fetch(`${API_URL}?SODH=${encodeURIComponent(SODH)}`)
                 .then(response => response.json())
                 .then(data => {
@@ -375,11 +456,15 @@
                 })
                 .catch(error => {
                     console.error('Đã xảy ra lỗi:', error.message);
+                })
+                .finally(() => {
+                    hideLoading(); // Ẩn màn hình loading sau khi tải xong hoặc xảy ra lỗi
                 });
+            ;
         }
         function updateUI() {
             document.getElementById('sodh').textContent = BAN_GIAO['Số đơn hàng'] || '';
-            document.getElementById('ngay').textContent = BAN_GIAO['Ngày đặt hàng'] || '';
+            document.getElementById('ngay').textContent = formatDate(BAN_GIAO['Ngày đặt hàng']) || '';
             document.getElementById('tenkh').textContent = BAN_GIAO['Tên khách hàng'] || '';
             document.getElementById('chinhanh').textContent = BAN_GIAO['Chi nhánh'] || '';
             document.getElementById('tongGiaTri').textContent = formatCurrency(BAN_GIAO['Tổng tiền hàng'] || 0);
@@ -397,18 +482,35 @@
 
         function updateProductTable() {
             const tableBody = document.getElementById('orderDetailsBody');
-            if (Array.isArray(CT_BANGIAO)) {
-                tableBody.innerHTML = CT_BANGIAO.map((item, index) => `
-            <tr>
-                    <td>${item['Tên hàng'] || ''}<br> ${formatCurrency(item['Giá bán'])} <br><span class="strikethrough">${formatCurrency(item['Đơn giá'])}</span></td>
-                    <td>${item['Số lượng'] || ''}</td>
-                    <td>${formatCurrency(item['Thành tiền'])}</td> 
-                </tr>
-        
-    `).join('');
+            const thermalTableBody = document.getElementById('thermalOrderDetailsBody');
+
+            tableBody.innerHTML = '';
+            thermalTableBody.innerHTML = '';
+
+            if (Array.isArray(CT_BANGIAO) && CT_BANGIAO.length > 0) {
+                CT_BANGIAO.forEach((item, index) => {
+                    const regularRow = tableBody.insertRow();
+                    regularRow.innerHTML = `
+                        <td class="center">${index + 1}</td>
+                        <td>${item['Tên hàng'] || ''}</td>
+                        <td style="text-align: center;">${formatCurrency(item['Giá bán'] || '')}</td>
+                        <td style="text-align: center;">${item['Số lượng'] || ''}</td>
+                        <td style="text-align: right;">${formatCurrency(item['Thành tiền'])}</td>
+                    `;
+
+                    const thermalRow = thermalTableBody.insertRow();
+                    thermalRow.innerHTML = `
+                        <td class="center">${index + 1}</td>
+                        <td><span style="font-weight: bold;">${item['Tên hàng'] || ''} </span> <br> <span style="display: inline-block; width: calc(100% - 15px); margin-left: 15px;"> ${item['Số lượng'] || ''}</span></td>
+                        <td style="text-align: center;"> <br> ${formatCurrency(item['Giá bán'] || '')} </td>
+                        <td style="text-align: right;"><br> ${formatCurrency(item['Thành tiền'])}</td>
+                    `;
+                });
+
             } else {
 
-                tableBody.innerHTML = '<tr><td colspan="9">Không có dữ liệu</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="4">Không có dữ liệu</td></tr>';
+                thermalTableBody.innerHTML = '<tr><td colspan="3">Không có dữ liệu</td></tr>';
             }
 
         }
@@ -420,6 +522,7 @@
                 searchContract(SODH);
             } else {
                 console.error('Vui lòng cung cấp số hợp đồng trong URL (ví dụ: ?SODH=HD001)');
+                hideLoading(); // Ẩn màn hình loading nếu không có SODH
             }
 
         });
@@ -750,6 +853,42 @@
             // Viết hoa chữ cái đầu tiên
             result = result.trim();
             return result.charAt(0).toUpperCase() + result.slice(1);
+        }
+
+
+        function updateOrderDetails() {
+            const orderDetails = [
+                { name: "Sản phẩm A", price: 100000, quantity: 2 },
+                { name: "Sản phẩm B", price: 150000, quantity: 1 }
+                // Thêm các sản phẩm khác nếu cần
+            ];
+
+            const regularTableBody = document.getElementById('orderDetailsBody');
+            const thermalTableBody = document.getElementById('thermalOrderDetailsBody');
+
+            regularTableBody.innerHTML = '';
+            thermalTableBody.innerHTML = '';
+
+            orderDetails.forEach(item => {
+                const total = item.price * item.quantity;
+
+                // Cập nhật bảng thông thường
+                const regularRow = regularTableBody.insertRow();
+                regularRow.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.price.toLocaleString('vi-VN')}đ</td>
+                    <td>${item.quantity}</td>
+                    <td>${total.toLocaleString('vi-VN')}đ</td>
+                `;
+
+                // Cập nhật bảng cho máy in nhiệt
+                const thermalRow = thermalTableBody.insertRow();
+                thermalRow.innerHTML = `
+                    <td>${item.name} x${item.quantity}</td>
+                    <td>${item.price.toLocaleString('vi-VN')}đ</td>
+                    <td>${total.toLocaleString('vi-VN')}đ</td>
+                `;
+            });
         }
     </script>
 </body>
